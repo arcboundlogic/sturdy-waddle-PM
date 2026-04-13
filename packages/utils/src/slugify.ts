@@ -7,7 +7,8 @@ export function slugify(input: string): string {
   result = result.replace(/[^\w\s-]/g, '');
   // Replace whitespace and underscores with a single hyphen
   result = result.replace(/[\s_]+/g, '-');
-  // Collapse multiple hyphens into one (non-greedy approach to avoid ReDoS)
+  // Collapse multiple hyphens into one using iterative approach
+  // (avoids regex /-+/g which was flagged for polynomial ReDoS risk)
   while (result.includes('--')) {
     result = result.replace('--', '-');
   }
