@@ -1,0 +1,45 @@
+# ============================
+# Sturdy Waddle PM — API
+# ============================
+FROM node:20-alpine AS base
+
+# Install dependencies
+FROM base AS deps
+WORKDIR /app
+COPY package.json package-lock.json* ./
+COPY apps/api/package.json ./apps/api/
+COPY packages/types/package.json ./packages/types/
+COPY packages/config/package.json ./packages/config/
+COPY packages/utils/package.json ./packages/utils/
+COPY packages/db/package.json ./packages/db/
+COPY packages/auth/package.json ./packages/auth/
+RUN npm ci --workspace=@waddle/api
+
+# Build
+FROM base AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+RUN npm run build --workspace=@waddle/types
+RUN npm run build --workspace=@waddle/config
+RUN npm run build --workspace=@waddle/utils
+RUN npm run build --workspace=@waddle/auth
+RUN npm run build --workspace=@waddle/db
+RUN npm run build --workspace=@waddle/api
+
+# Production
+FROM base AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 waddle
+USER waddle
+
+COPY --from=builder --chown=waddle:nodejs /app/node_modules ./node_modules
+COPY --from=builder --chown=waddle:nodejs /app/apps/api/dist ./apps/api/dist
+COPY --from=builder --chown=waddle:nodejs /app/apps/api/package.json ./apps/api/
+COPY --from=builder --chown=waddle:nodejs /app/packages ./packages
+
+EXPOSE 4000
+CMD ["node", "apps/api/dist/index.js"]
