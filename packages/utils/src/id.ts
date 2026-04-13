@@ -1,8 +1,7 @@
-import { randomUUID } from 'crypto';
-
 /**
  * Generate a cryptographically secure UUID v4.
+ * Uses the Web Crypto API which is available in Node.js 19+ and modern browsers.
  */
 export function generateId(): string {
-  return randomUUID();
+  return crypto.randomUUID();
 }

@@ -28,6 +28,6 @@ export const db: Database = new Proxy({} as Database, {
       }
       _db = createDbClient(url);
     }
-    return (_db as Record<string | symbol, unknown>)[prop];
+    return (_db as unknown as Record<string | symbol, unknown>)[prop];
   },
 });
