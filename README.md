@@ -6,6 +6,22 @@ AI-native, context-aware project management built for technical and creative pro
 
 [![CI](https://github.com/arcboundlogic/sturdy-waddle-PM/actions/workflows/ci.yml/badge.svg)](https://github.com/arcboundlogic/sturdy-waddle-PM/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Branch: main (stable)](https://img.shields.io/badge/branch-main%20%E2%80%94%20stable%20%2F%20production-brightgreen)](https://github.com/arcboundlogic/sturdy-waddle-PM/tree/main)
+
+---
+
+## 🌿 Branch Guide
+
+> **You are on `main` — the stable, production-ready branch.** This branch contains the full, reviewed codebase and is the recommended starting point for contributors and users.
+
+For a detailed breakdown of every branch, see [**BRANCHES.md**](BRANCHES.md).
+
+| Branch | Status | Description |
+|--------|--------|-------------|
+| [`main`](https://github.com/arcboundlogic/sturdy-waddle-PM/tree/main) | 🟢 **Stable / Production** | Full codebase — start here |
+| [`copilot/sturdy-waddle-pm-expansion`](https://github.com/arcboundlogic/sturdy-waddle-PM/tree/copilot/sturdy-waddle-pm-expansion) | 🔵 Merged → main | Phase 1–3 feature expansion (services, auth, AI, infra) |
+| [`copilot/plan-design-project-management-platform`](https://github.com/arcboundlogic/sturdy-waddle-PM/tree/copilot/plan-design-project-management-platform) | 🏛️ Archive | Initial scaffold & architecture design |
+| [`copilot/edit-readme-guide`](https://github.com/arcboundlogic/sturdy-waddle-PM/tree/copilot/edit-readme-guide) | 🔵 Merged → main | Early README and branch navigation docs |
 
 ---
 
