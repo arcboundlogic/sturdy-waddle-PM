@@ -1,0 +1,80 @@
+# Sturdy Waddle PM — Kubernetes Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: waddle-pm
+  labels:
+    app.kubernetes.io/name: sturdy-waddle-pm
+    app.kubernetes.io/part-of: waddle-pm
+---
+# API Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: waddle-api
+  namespace: waddle-pm
+  labels:
+    app: waddle-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: waddle-api
+  template:
+    metadata:
+      labels:
+        app: waddle-api
+    spec:
+      containers:
+        - name: api
+          image: waddle-pm/api:latest
+          ports:
+            - containerPort: 4000
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: API_PORT
+              value: "4000"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: waddle-secrets
+                  key: database-url
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: waddle-secrets
+                  key: redis-url
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health/ready
+              port: 4000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health/live
+              port: 4000
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+---
+# API Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: waddle-api
+  namespace: waddle-pm
+spec:
+  selector:
+    app: waddle-api
+  ports:
+    - port: 80
+      targetPort: 4000
+  type: ClusterIP
