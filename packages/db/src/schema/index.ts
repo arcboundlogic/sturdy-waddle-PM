@@ -6,3 +6,5 @@ export * from './work-items';
 export * from './comments';
 export * from './sprints';
 export * from './activity';
+export * from './automations';
+export * from './notifications';

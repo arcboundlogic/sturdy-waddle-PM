@@ -1,6 +1,8 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { HTTPException } from 'hono/http-exception';
+import { db, projects } from '@waddle/db';
+import { eq, and } from 'drizzle-orm';
 
 export const projectRoutes = new Hono();
 
@@ -30,17 +32,62 @@ const updateProjectSchema = z.object({
   isArchived: z.boolean().optional(),
 });
 
+function decodeCursor(cursor: string): Date {
+  return new Date(Buffer.from(cursor, 'base64url').toString('utf8'));
+}
+
+function encodeCursor(date: Date): string {
+  return Buffer.from(date.toISOString()).toString('base64url');
+}
+
 /** List projects in a workspace */
-projectRoutes.get('/', (c) => {
-  // TODO: Implement with DB query, filtered by workspace
-  return c.json({
-    data: [],
-    meta: { total: 0 },
-  });
+projectRoutes.get('/', async (c) => {
+  const workspaceId = c.get('workspaceId') as string | undefined;
+  const limit = Math.min(Number(c.req.query('limit') ?? '25'), 100);
+  const after = c.req.query('after');
+  const includeArchived = c.req.query('archived') === 'true';
+
+  if (!workspaceId) {
+    throw new HTTPException(400, { message: 'Workspace context required' });
+  }
+
+  try {
+    let rows = await db
+      .select()
+      .from(projects)
+      .where(
+        includeArchived
+          ? eq(projects.workspaceId, workspaceId)
+          : and(eq(projects.workspaceId, workspaceId), eq(projects.isArchived, false)),
+      )
+      .limit(limit + 1);
+
+    if (after) {
+      const cursor = decodeCursor(after);
+      rows = rows.filter((r) => r.createdAt > cursor);
+    }
+
+    const hasMore = rows.length > limit;
+    const items = hasMore ? rows.slice(0, limit) : rows;
+
+    return c.json({
+      data: items,
+      meta: {
+        hasMore,
+        nextCursor: hasMore ? encodeCursor(items[items.length - 1]!.createdAt) : null,
+      },
+    });
+  } catch (err) {
+    console.error('[projects.list]', err);
+    throw new HTTPException(500, { message: 'Failed to list projects' });
+  }
 });
 
 /** Create a new project */
 projectRoutes.post('/', async (c) => {
+  const workspaceId = c.get('workspaceId') as string | undefined;
+  if (!workspaceId) throw new HTTPException(400, { message: 'Workspace context required' });
+
   const body = await c.req.json();
   const parsed = createProjectSchema.safeParse(body);
 
@@ -51,33 +98,55 @@ projectRoutes.post('/', async (c) => {
     });
   }
 
-  // TODO: Implement with DB insert
-  return c.json(
-    {
-      data: {
-        id: 'placeholder-uuid',
-        ...parsed.data,
-        isArchived: false,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
-    },
-    201,
-  );
+  try {
+    const [project] = await db
+      .insert(projects)
+      .values({
+        workspaceId,
+        name: parsed.data.name,
+        key: parsed.data.key,
+        description: parsed.data.description,
+        portfolioId: parsed.data.portfolioId,
+        color: parsed.data.color,
+      })
+      .returning();
+
+    return c.json({ data: project }, 201);
+  } catch (err: unknown) {
+    console.error('[projects.create]', err);
+    throw new HTTPException(500, { message: 'Failed to create project' });
+  }
 });
 
 /** Get project by ID */
-projectRoutes.get('/:id', (c) => {
+projectRoutes.get('/:id', async (c) => {
   const id = c.req.param('id');
-  // TODO: Implement with DB query
-  return c.json({
-    data: { id, message: 'Not yet implemented' },
-  });
+  const workspaceId = c.get('workspaceId') as string | undefined;
+
+  try {
+    const conditions = workspaceId
+      ? and(eq(projects.id, id), eq(projects.workspaceId, workspaceId))
+      : eq(projects.id, id);
+
+    const [project] = await db.select().from(projects).where(conditions).limit(1);
+
+    if (!project) {
+      throw new HTTPException(404, { message: 'Project not found' });
+    }
+
+    return c.json({ data: project });
+  } catch (err) {
+    if (err instanceof HTTPException) throw err;
+    console.error('[projects.get]', err);
+    throw new HTTPException(500, { message: 'Failed to get project' });
+  }
 });
 
 /** Update a project */
 projectRoutes.patch('/:id', async (c) => {
   const id = c.req.param('id');
+  const workspaceId = c.get('workspaceId') as string | undefined;
+
   const body = await c.req.json();
   const parsed = updateProjectSchema.safeParse(body);
 
@@ -88,15 +157,49 @@ projectRoutes.patch('/:id', async (c) => {
     });
   }
 
-  // TODO: Implement with DB update
-  return c.json({
-    data: { id, ...parsed.data, updatedAt: new Date().toISOString() },
-  });
+  try {
+    const conditions = workspaceId
+      ? and(eq(projects.id, id), eq(projects.workspaceId, workspaceId))
+      : eq(projects.id, id);
+
+    const [project] = await db
+      .update(projects)
+      .set({ ...parsed.data, updatedAt: new Date() })
+      .where(conditions)
+      .returning();
+
+    if (!project) {
+      throw new HTTPException(404, { message: 'Project not found' });
+    }
+
+    return c.json({ data: project });
+  } catch (err) {
+    if (err instanceof HTTPException) throw err;
+    console.error('[projects.update]', err);
+    throw new HTTPException(500, { message: 'Failed to update project' });
+  }
 });
 
 /** Delete a project */
-projectRoutes.delete('/:id', (c) => {
+projectRoutes.delete('/:id', async (c) => {
   const id = c.req.param('id');
-  // TODO: Implement with DB delete
-  return c.json({ data: { id, deleted: true } });
+  const workspaceId = c.get('workspaceId') as string | undefined;
+
+  try {
+    const conditions = workspaceId
+      ? and(eq(projects.id, id), eq(projects.workspaceId, workspaceId))
+      : eq(projects.id, id);
+
+    const [deleted] = await db.delete(projects).where(conditions).returning({ id: projects.id });
+
+    if (!deleted) {
+      throw new HTTPException(404, { message: 'Project not found' });
+    }
+
+    return c.json({ data: { id: deleted.id, deleted: true } });
+  } catch (err) {
+    if (err instanceof HTTPException) throw err;
+    console.error('[projects.delete]', err);
+    throw new HTTPException(500, { message: 'Failed to delete project' });
+  }
 });
